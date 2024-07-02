@@ -162,7 +162,7 @@
             border-top: 15px solid rgb(0, 255, 17);
             transform-origin: 50% 25px;
             /* Move origin to bottom center of the arrow */
-            animation: spin 2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+            animation: spin 1s cubic-bezier(0.25, 0.1, 0.25, 1) forwards ;
         }
 
         @keyframes fadeout {
@@ -291,7 +291,7 @@
             startBattle() {
                 this.startBtn.disabled = true;
                 this.fight(); // Start the first fight immediately
-                this.battleInterval = setInterval(() => this.fight(), 4000); // Adjust timing as needed
+                this.battleInterval = setInterval(() => this.fight(), 2500); // Adjust timing as needed
             }
 
             updateHealthBars() {
@@ -364,7 +364,7 @@
                         }
 
                         this.updateHealthBars();
-                    }, 2100);
+                    }, 1100);
                 };
 
                 logActions();
