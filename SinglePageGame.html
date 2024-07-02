@@ -58,6 +58,7 @@
         }
 
         .health-bar {
+            position: relative;
             background-color: #4a4e69;
             height: 20px;
             border-radius: 10px;
@@ -66,10 +67,26 @@
         }
 
         .health-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
             background-color: #00ff9d;
             height: 100%;
             width: 100%;
             transition: width 0.3s ease-in-out;
+            z-index: 2;
+        }
+
+        .catchup-health-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #ff0000;
+            opacity: 0.7;
+            height: 100%;
+            width: 100%;
+            transition: width 1s ease-in-out;
+            z-index: 1;
         }
 
         .action-log {
@@ -162,7 +179,7 @@
             border-top: 15px solid rgb(0, 255, 17);
             transform-origin: 50% 25px;
             /* Move origin to bottom center of the arrow */
-            animation: spin 1s cubic-bezier(0.25, 0.1, 0.25, 1) forwards ;
+            animation: spin 1s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
         }
 
         @keyframes fadeout {
@@ -183,6 +200,7 @@
                 <div class="character-sprite">🦹</div>
                 <h2>Player</h2>
                 <div class="health-bar">
+                    <div class="catchup-health-fill"></div>
                     <div class="health-fill"></div>
                 </div>
                 <p>HP: <span class="hp">100</span></p>
@@ -202,6 +220,7 @@
                 <h2>Enemy</h2>
                 <div class="health-bar">
                     <div class="health-fill"></div>
+                    <div class="catchup-health-fill"></div>
                 </div>
                 <p>HP: <span class="hp">100</span></p>
                 <div class="circles">
@@ -287,11 +306,19 @@
 
                 this.updateUI();
                 this.drawCircles();
+                this.setInitialHealth(this.player);
+                this.setInitialHealth(this.enemy);
             }
             startBattle() {
                 this.startBtn.disabled = true;
                 this.fight(); // Start the first fight immediately
                 this.battleInterval = setInterval(() => this.fight(), 2500); // Adjust timing as needed
+            }
+            setInitialHealth(character) {
+                let charElement = document.getElementById(character.name.toLowerCase());
+                let healthPercent = (character.hp / character.maxHp) * 100;
+                charElement.querySelector('.health-fill').style.width = `${healthPercent}%`;
+                charElement.querySelector('.catchup-health-fill').style.width = `${healthPercent}%`;
             }
 
             updateHealthBars() {
@@ -405,7 +432,14 @@
                 let charElement = document.getElementById(character.name.toLowerCase());
                 charElement.querySelector('.hp').textContent = character.hp;
                 let healthPercent = (character.hp / character.maxHp) * 100;
+
+                // Update the main health bar
                 charElement.querySelector('.health-fill').style.width = `${healthPercent}%`;
+
+                // Update the catchup health bar with a delay
+                setTimeout(() => {
+                    charElement.querySelector('.catchup-health-fill').style.width = `${healthPercent}%`;
+                }, 500); // 500ms delay, adjust as needed
             }
 
             drawCircles() {
@@ -483,18 +517,27 @@
                 canvas.width = 50;
                 canvas.height = 50;
 
-                const remainingActions = bagBefore.reduce((acc, action) => {
-                    acc[action.name] = (acc[action.name] || 0) + 1;
-                    return acc;
-                }, {});
+                // Step 1: Calculate correct probabilities
+                const totalActions = bagBefore.length;
+                const probabilities = circleData.map(action => {
+                    return bagBefore.filter(a => a.name === action.name).length / totalActions;
+                });
+
+                // Step 2: Determine the range for the chosen action
+                const hitIndex = circleData.findIndex(action => action === hitAction);
+                const startAngle = probabilities.slice(0, hitIndex).reduce((sum, p) => sum + p, 0) * 360;
+                const endAngle = startAngle + probabilities[hitIndex] * 360;
+
+                // Step 3: Randomly select a degree within the range
+                const randomDegree = startAngle + Math.random() * (endAngle - startAngle);
 
                 const ctx = canvas.getContext('2d');
-                const chart = new Chart(ctx, {
+                new Chart(ctx, {
                     type: 'pie',
                     data: {
                         labels: circleData.map(action => action.name),
                         datasets: [{
-                            data: circleData.map(action => remainingActions[action.name] || 0),
+                            data: probabilities,
                             backgroundColor: circleData.map(action => action === hitAction ? '#feca57' : action.color),
                         }]
                     },
@@ -518,21 +561,8 @@
                 arrow.className = 'log-arrow';
                 container.appendChild(arrow);
 
-                // Calculate the rotation for the arrow
-                const hitIndex = circleData.findIndex(action => action === hitAction);
-                const totalWeight = circleData.reduce((sum, action) => sum + action.weight, 0);
-                const cumulativeWeights = circleData.reduce((acc, action, index) => {
-                    acc[index] = (acc[index - 1] || 0) + action.weight;
-                    return acc;
-                }, {});
-
-                const hitStart = (cumulativeWeights[hitIndex - 1] || 0) / totalWeight;
-                const hitEnd = cumulativeWeights[hitIndex] / totalWeight;
-                const randomPoint = hitStart + Math.random() * (hitEnd - hitStart);
-                const rotationDegrees = randomPoint * 360;
-
-                // Set the final rotation
-                arrow.style.setProperty('--final-rotation', `${rotationDegrees}deg`);
+                // Set the final rotation to the randomly selected degree within the correct slice
+                arrow.style.setProperty('--final-rotation', `${randomDegree}deg`);
 
                 return container;
             }
