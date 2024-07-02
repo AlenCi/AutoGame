@@ -44,6 +44,28 @@
             width: 45%;
         }
 
+        @keyframes shake {
+            0% {
+                transform: translate(0, 0);
+            }
+
+            25% {
+                transform: translate(var(--shake-x), var(--shake-y));
+            }
+
+            50% {
+                transform: translate(calc(var(--shake-x) * -1), var(--shake-y));
+            }
+
+            75% {
+                transform: translate(var(--shake-x), calc(var(--shake-y) * -1));
+            }
+
+            100% {
+                transform: translate(0, 0);
+            }
+        }
+
         .character-sprite {
             width: 100px;
             height: 100px;
@@ -55,6 +77,10 @@
             align-items: center;
             font-size: 40px;
             color: #e94560;
+        }
+
+        .shake {
+            animation: shake 0.5s ease-in-out;
         }
 
         .health-bar {
@@ -326,6 +352,27 @@
                 this.updateCharacterUI(this.enemy);
             }
 
+            shakeCharacter(character, damage) {
+                const charElement = document.getElementById(character.name.toLowerCase());
+                const sprite = charElement.querySelector('.character-sprite');
+
+                // Remove the class if it's already there
+                sprite.classList.remove('shake');
+
+                // Calculate shake intensity based on damage (adjust multiplier as needed)
+                const intensity = Math.min(damage * 0.5, 20); // Cap at 20px to avoid excessive shaking
+
+                // Set CSS variables for shake intensity
+                sprite.style.setProperty('--shake-x', `${intensity}px`);
+                sprite.style.setProperty('--shake-y', `${intensity / 2}px`);
+
+                // Trigger reflow
+                void sprite.offsetWidth;
+
+                // Add the class to start the animation
+                sprite.classList.add('shake');
+            }
+
             fight() {
                 if (this.gameOver) {
                     clearInterval(this.battleInterval);
@@ -363,14 +410,20 @@
                         if (defense.name === 'Dodge') {
                             this.log(`${defender.name} dodges the attack!`);
                         } else if (defense.name === 'Counter') {
-                            let counterDamage = Math.floor(damage * 0.5); // 50% damage reflection
+                            let counterDamage = Math.floor(damage * 0.5);
                             let defenderDefeated = defender.takeDamage(damage);
                             let attackerDefeated = attacker.takeDamage(counterDamage);
 
                             this.log(`${defender.name} takes ${damage} damage but counters and deals ${counterDamage} damage back!`);
                             this.log(`${attacker.name} takes ${counterDamage} damage from the counter!`);
 
-                            if (defenderDefeated) {
+                            this.shakeCharacter(defender, damage);
+                            this.shakeCharacter(attacker, counterDamage);
+                            if (defenderDefeated && attackerDefeated) {
+                                this.gameOver = true;
+                                this.log(`Both ${defender.name} and ${attacker.name} have been defeated! It's a tie!`);
+                                clearInterval(this.battleInterval);
+                            } else if (defenderDefeated) {
                                 this.gameOver = true;
                                 this.log(`${defender.name} has been defeated! ${attacker.name} wins!`);
                                 clearInterval(this.battleInterval);
@@ -383,6 +436,7 @@
                             let defeated = defender.takeDamage(damage);
                             this.log(`${defender.name} takes ${damage} damage!`);
 
+                            this.shakeCharacter(defender, damage);
                             if (defeated) {
                                 this.gameOver = true;
                                 this.log(`${defender.name} has been defeated! ${attacker.name} wins!`);
@@ -510,62 +564,68 @@
             }
 
             createPieChart(circleData, hitAction, bagBefore) {
-                let container = document.createElement('div');
-                container.className = 'log-pie-chart';
+    let container = document.createElement('div');
+    container.className = 'log-pie-chart';
 
-                let canvas = document.createElement('canvas');
-                canvas.width = 50;
-                canvas.height = 50;
+    let canvas = document.createElement('canvas');
+    canvas.width = 50;
+    canvas.height = 50;
 
-                // Step 1: Calculate correct probabilities
-                const totalActions = bagBefore.length;
-                const probabilities = circleData.map(action => {
-                    return bagBefore.filter(a => a.name === action.name).length / totalActions;
-                });
+    // Step 1: Calculate correct probabilities
+    const totalActions = bagBefore.length;
+    const probabilities = circleData.map(action => {
+        return bagBefore.filter(a => a.name === action.name).length / totalActions;
+    });
 
-                // Step 2: Determine the range for the chosen action
-                const hitIndex = circleData.findIndex(action => action === hitAction);
-                const startAngle = probabilities.slice(0, hitIndex).reduce((sum, p) => sum + p, 0) * 360;
-                const endAngle = startAngle + probabilities[hitIndex] * 360;
+    // Step 2: Determine the range for the chosen action
+    const hitIndex = circleData.findIndex(action => action === hitAction);
+    const startAngle = probabilities.slice(0, hitIndex).reduce((sum, p) => sum + p, 0) * 360;
+    const endAngle = startAngle + probabilities[hitIndex] * 360;
 
-                // Step 3: Randomly select a degree within the range
-                const randomDegree = startAngle + Math.random() * (endAngle - startAngle);
+    // Step 3: Randomly select a degree within the range
+    const randomDegree = startAngle + Math.random() * (endAngle - startAngle);
 
-                const ctx = canvas.getContext('2d');
-                new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: circleData.map(action => action.name),
-                        datasets: [{
-                            data: probabilities,
-                            backgroundColor: circleData.map(action => action === hitAction ? '#feca57' : action.color),
-                        }]
-                    },
-                    options: {
-                        responsive: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                enabled: false
-                            }
-                        }
-                    }
-                });
-
-                container.appendChild(canvas);
-
-                // Add spinning arrow
-                let arrow = document.createElement('div');
-                arrow.className = 'log-arrow';
-                container.appendChild(arrow);
-
-                // Set the final rotation to the randomly selected degree within the correct slice
-                arrow.style.setProperty('--final-rotation', `${randomDegree}deg`);
-
-                return container;
+    const ctx = canvas.getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: circleData.map(action => action.name),
+            datasets: [{
+                data: probabilities,
+                backgroundColor: circleData.map(action => action.color),
+            }]
+        },
+        options: {
+            responsive: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    enabled: false
+                }
             }
+        }
+    });
+
+    container.appendChild(canvas);
+
+    // Add spinning arrow
+    let arrow = document.createElement('div');
+    arrow.className = 'log-arrow';
+    container.appendChild(arrow);
+
+    // Set the final rotation to the randomly selected degree within the correct slice
+    arrow.style.setProperty('--final-rotation', `${randomDegree}deg`);
+
+    // Change the color of the hit slice to yellow after the animation
+    setTimeout(() => {
+        chart.data.datasets[0].backgroundColor[hitIndex] = '#feca57';
+        chart.update();
+    }, 1000); // Match this to the duration of your arrow spin animation
+
+    return container;
+}
         }
 
         new Game();
